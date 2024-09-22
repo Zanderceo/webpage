@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work space </title>
+    <link rel="stylesheet" href="dark-styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Time In Calculator (Work space)
+        </h2>
+
+        <label for="name">Name:</label>
+        <input type="text" id="name" placeholder="Enter name">
+
+        <label for="entryTime">Entry Time:</label>
+        <input type="time" id="entryTime">
+        <button onclick="startTimer()">Start Timer</button>
+
+        <label for="hourRate">Hourly Rate:</label>
+        <input type="number" id="hourRate" placeholder="Enter hourly rate">
+
+        <h3>Recorded Data:</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Entry Time</th>
+                        <th>Exit Time</th>
+                        <th>Timer</th>
+                        <th>Total Cost</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody">
+                    <!-- Data will appear here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let users = [];
+
+        // Load users from localStorage on page load
+        window.onload = function() {
+            const savedUsers = JSON.parse(localStorage.getItem('users')) || [];
+            savedUsers.forEach(user => {
+                user.startTime = new Date(user.startTime); // Restore startTime as Date object
+                users.push(user);
+                addRowToTable(user);
+
+                // If timer is still running (no exit time), restart the interval
+                if (!user.exitTime) {
+                    user.intervalId = setInterval(() => updateTimer(user.id), 1000);
+                } else {
+                    // If the timer has stopped, display the final time and cost
+                    updateTimer(user.id, true);
+                }
+            });
+        };
+
+        // Save users to localStorage
+        function saveToLocalStorage() {
+            localStorage.setItem('users', JSON.stringify(users));
+        }
+
+        function startTimer() {
+            const name = document.getElementById('name').value;
+            const entryTime = document.getElementById('entryTime').value;
+            const hourRate = parseFloat(document.getElementById('hourRate').value);
+
+            if (!name || !entryTime || !hourRate) {
+                alert('Please fill in all fields.');
+                return;
+            }
+
+            const startTime = new Date(); // Save the start time as a date
+            const userId = users.length;
+
+            const user = {
+                id: userId,
+                name: name,
+                entryTime: entryTime,
+                startTime: startTime, // Store startTime
+                hourRate: hourRate,
+                intervalId: null,
+                exitTime: null
+            };
+
+            users.push(user);
+            saveToLocalStorage();
+            addRowToTable(user);
+
+            user.intervalId = setInterval(() => updateTimer(userId), 1000);
+        }
+
+        function updateTimer(userId, isFinal = false) {
+            const user = users[userId];
+            const currentTime = new Date();
+            const elapsedTime = new Date(currentTime - user.startTime);
+
+            const hours = String(elapsedTime.getUTCHours()).padStart(2, '0');
+            const minutes = String(elapsedTime.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(elapsedTime.getUTCSeconds()).padStart(2, '0');
+
+            const timerCell = document.getElementById(`timer-${userId}`);
+            if (timerCell) {
+                timerCell.textContent = `${hours}:${minutes}:${seconds}`;
+            }
+
+            if (!isFinal) {
+                const totalCost = calculateCost(`${hours}:${minutes}:${seconds}`, user.hourRate);
+                const costCell = document.getElementById(`cost-${userId}`);
+                if (costCell) {
+                    costCell.textContent = `${totalCost.toFixed(2)} pound`;
+                }
+            }
+        }
+
+        function stopTimer(userId) {
+            const user = users[userId];
+            clearInterval(user.intervalId);
+
+            const exitTime = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            user.exitTime = exitTime;
+
+            const exitTimeCell = document.getElementById(`exitTime-${userId}`);
+            if (exitTimeCell) {
+                exitTimeCell.textContent = exitTime;
+            }
+
+            const timerCell = document.getElementById(`timer-${userId}`).textContent;
+            const finalCost = calculateCost(timerCell, user.hourRate);
+            const costCell = document.getElementById(`cost-${user.id}`);
+            if (costCell) {
+                costCell.textContent = `${finalCost.toFixed(2)} pound`;
+            }
+
+            saveToLocalStorage(); // Save updated user data
+        }
+
+        function calculateCost(duration, hourRate) {
+            const parts = duration.split(':');
+            const hours = parseInt(parts[0], 10) + (parseInt(parts[1], 10) / 60) + (parseInt(parts[2], 10) / 3600);
+            return hours * hourRate;
+        }
+
+        function addRowToTable(user) {
+            const row = `<tr>
+                            <td>${user.name}</td>
+                            <td>${user.entryTime}</td>
+                            <td id="exitTime-${user.id}">${user.exitTime || '---'}</td>
+                            <td id="timer-${user.id}">00:00:00</td>
+                            <td id="cost-${user.id}">0.00 pound</td>
+                            <td>
+                                <button onclick="stopTimer(${user.id})">Stop Timer</button>
+                                <button onclick="deleteRow(${user.id})">Delete</button>
+                            </td>
+                         </tr>`;
+            document.getElementById('dataBody').insertAdjacentHTML('beforeend', row);
+        }
+
+        function deleteRow(userId) {
+            document.getElementById(`timer-${userId}`).parentElement.remove();
+            clearInterval(users[userId].intervalId);
+
+            users = users.filter(user => user.id !== userId);
+            saveToLocalStorage();
+        }
+    </script>
+</body>
+
+</html>
